@@ -178,9 +178,9 @@ def upload_feed_to_cloudinary(xml_content):
         upload_result = cloudinary.uploader.upload(
             file=xml_content,
             resource_type="raw",
-            public_id="marktplaats_feed",
-            folder="XMLs/Netherlands/Marktplaats",
             upload_preset="nl-marktplaats-feed-uploader",
+            public_id="marktplaats_feed.xml", # Явно указываем .xml в имени файла
+            folder="XMLs/Netherlands/Marktplaats",
             overwrite=True
         )
         logger.info(f"Successfully uploaded to Cloudinary. Public ID: {upload_result.get('public_id')}")
@@ -237,6 +237,5 @@ def index():
 
 if __name__ == '__main__':
     # Эта часть нужна для локального тестирования
-    # Render использует gunicorn и переменную окружения PORT, поэтому этот блок не будет выполняться на сервере
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
