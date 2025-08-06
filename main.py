@@ -97,19 +97,21 @@ def collect_additional_images(record):
     return additional_images
 
 def generate_xml_feed(records):
-    """Генерирует XML-фид из записей таблицы."""
+    """Генерирует XML-фид и возвращает словарь со статистикой."""
     logger.info("Starting XML feed generation...")
-    # Создаем корневой элемент XML согласно документации Marktplaats
     ns = "http://admarkt.marktplaats.nl/schemas/1.0"
     root = etree.Element(f"{{{ns}}}ads", nsmap={'admarkt': ns})
     
     processed_count = 0
     skipped_count = 0
+    error_details = [] # Новый список для сбора информации об ошибках
     
     for i, record in enumerate(records):
-        row_num = i + 2 # +2 потому что get_all_records() не включает заголовок, а нумерация в таблице с 1
+        row_num = i + 2
+        vendor_id = record.get('vendorId', f'ROW-{row_num}') # Используем ID, если есть
+        
         try:
-            # Фильтруем только активные объявления
+            # Фильтруем неактивные объявления
             available = str(record.get('Available', '')).upper()
             if available not in ['TRUE', 'YES', '1']:
                 skipped_count += 1
@@ -118,8 +120,9 @@ def generate_xml_feed(records):
             # Валидация записи
             is_valid, error_msg = validate_record(record)
             if not is_valid:
-                logger.warning(f"Skipping invalid record on row {row_num}: {error_msg}")
+                logger.warning(f"Skipping invalid record on row {row_num} (ID: {vendor_id}): {error_msg}")
                 skipped_count += 1
+                error_details.append({"vendorId": vendor_id, "reason": error_msg})
                 continue
             
             ad_element = etree.SubElement(root, f"{{{ns}}}ad")
@@ -161,12 +164,20 @@ def generate_xml_feed(records):
             
             processed_count += 1
         except Exception as e:
-            logger.error(f"Error processing record on row {row_num}: {e}")
+            logger.error(f"Error processing record on row {row_num} (ID: {vendor_id}): {e}")
             skipped_count += 1
+            error_details.append({"vendorId": vendor_id, "reason": str(e)})
             continue
             
     logger.info(f"Feed generation completed. Processed: {processed_count}, Skipped: {skipped_count}")
-    return etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8')
+    
+    # Возвращаем словарь с результатами
+    return {
+        "xml_content": etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8'),
+        "processed_count": processed_count,
+        "skipped_count": skipped_count,
+        "error_details": error_details
+    }
 
 def upload_feed_to_cloudinary(xml_content):
     """Загружает XML-фид в Cloudinary."""
@@ -179,7 +190,7 @@ def upload_feed_to_cloudinary(xml_content):
             file=xml_content,
             resource_type="raw",
             upload_preset="nl-marktplaats-feed-uploader",
-            public_id="marktplaats_feed.xml", # Явно указываем .xml в имени файла
+            public_id="marktplaats_feed.xml",
             folder="XMLs/Netherlands/Marktplaats",
             overwrite=True
         )
@@ -193,12 +204,16 @@ def upload_feed_to_cloudinary(xml_content):
 def generate_and_upload_feed():
     """
     Запускает процесс: чтение из GSheets -> генерация XML -> загрузка в Cloudinary.
-    Возвращает JSON с результатом.
+    Возвращает JSON с результатом и статистикой.
     """
     try:
         logger.info("Feed generation and upload process started by accessing the URL.")
         records = get_sheet_data()
-        xml_feed_content = generate_xml_feed(records)
+        total_rows_found = len(records)
+        
+        generation_result = generate_xml_feed(records)
+        xml_feed_content = generation_result["xml_content"]
+        
         upload_result = upload_feed_to_cloudinary(xml_feed_content)
         
         final_url = upload_result.get('secure_url')
@@ -206,10 +221,16 @@ def generate_and_upload_feed():
             "status": "success",
             "message": "Feed has been successfully generated and uploaded to Cloudinary.",
             "cloudinary_feed_url": final_url,
+            "stats": {
+                "total_rows_found_in_sheet": total_rows_found,
+                "rows_added_to_xml": generation_result["processed_count"],
+                "rows_skipped": generation_result["skipped_count"],
+                "errors": generation_result["error_details"]
+            },
             "version": upload_result.get('version'),
             "processed_at": upload_result.get('created_at')
         }
-        logger.info(f"Process finished successfully. Feed URL: {final_url}")
+        logger.info(f"Process finished successfully. URL: {final_url}. Stats: {generation_result}")
         return jsonify(response_data), 200
 
     except Exception as e:
