@@ -54,7 +54,28 @@ Once deployed, your app will have these endpoints:
 - ✅ Error handling and logging
 - ✅ XSD schema validation
 
-### 6. Environment Variables Reference
+### 6. Troubleshooting Deployment Issues
+
+#### Common Issue: "ModuleNotFoundError: No module named 'app'"
+
+**Solution 1: Use Procfile (Recommended)**
+- The repository includes a `Procfile` with `web: gunicorn app:app`
+- Render will automatically detect and use the Procfile
+
+**Solution 2: Manual Configuration in Render Dashboard**
+If `render.yaml` is not being used:
+1. Go to your service settings in Render
+2. Navigate to "Settings" tab
+3. Set "Start Command" to: `gunicorn app:app`
+4. Set "Build Command" to: `pip install -r requirements.txt`
+
+**Solution 3: Verify File Structure**
+Ensure your repository has:
+- `app.py` (main application file)
+- `requirements.txt` (dependencies)
+- `Procfile` (deployment command)
+
+### 7. Environment Variables Reference
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -64,3 +85,11 @@ Once deployed, your app will have these endpoints:
 | `CLOUDINARY_CLOUD_NAME` | No | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | No | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | No | Cloudinary API secret |
+
+### 8. Deployment Files
+
+- `app.py` - Main application (Flask app with `app` variable)
+- `APP.py` - Same as app.py (backup)
+- `Procfile` - Render deployment command
+- `render.yaml` - Render service configuration
+- `requirements.txt` - Python dependencies

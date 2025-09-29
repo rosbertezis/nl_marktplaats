@@ -3,7 +3,7 @@ services:
     name: marktplaats-xml-generator
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn APP:app
+    startCommand: gunicorn app:app
     envVars:
       - key: PORT
         value: 8080
