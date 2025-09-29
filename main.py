@@ -75,8 +75,11 @@ def get_sheet_data():
         if not os.path.exists(CREDENTIALS_FILE):
             raise FileNotFoundError(f"credentials.json file not found at path: {CREDENTIALS_FILE}")
             
-        creds = Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPE)
-        client = gspread.authorize(creds)
+        # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+        # Заменяем старый метод authorize на новый service_account
+        client = gspread.service_account(filename=CREDENTIALS_FILE)
+        # --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
         sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
         records = sheet.get_all_records()
         logger.info(f"Success: retrieved {len(records)} records from table '{SPREADSHEET_NAME}'.")
