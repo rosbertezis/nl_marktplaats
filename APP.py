@@ -218,6 +218,68 @@ def get_price_with_fallback(price_value, price_type):
         # Return 0 to satisfy schema requirement for <price> tag presence.
         return 0
 
+def replace_text_tags(record):
+    """
+    Replaces template tags in text fields with actual values from record.
+    Processing order: title -> Centre_description -> description
+    Each updated field is saved to memory for use in subsequent fields.
+    """
+    # Initialize memory for storing updated content
+    memory = {}
+    
+    # Define tag mapping
+    tag_mapping = {
+        '{{Centre_description}}': lambda: memory.get('Centre_description', ''),
+        '{{center_name}}': lambda: clean_text(record.get('center_name', '')),
+        '{{price}}': lambda: clean_text(record.get('price (mirror)', '')),
+        '{{currency}}': lambda: 'EUR',
+        '{{area_Min}}': lambda: clean_text(record.get('area_sqm', '')),
+        '{{area_Max}}': lambda: clean_text(record.get('area_max', ''))
+    }
+    
+    def replace_tags_in_text(text):
+        """Helper function to replace all tags in a given text."""
+        if not text:
+            return text
+            
+        result = str(text)
+        replacements_made = []
+        for tag, get_value_func in tag_mapping.items():
+            if tag in result:
+                replacement_value = get_value_func()
+                result = result.replace(tag, replacement_value)
+                replacements_made.append(f"{tag} -> {replacement_value}")
+        return result, replacements_made
+    
+    # Step 1: Process title column
+    original_title = record.get('title', '')
+    updated_title, title_replacements = replace_tags_in_text(original_title)
+    memory['title'] = updated_title
+    
+    # Step 2: Process Centre_description column
+    original_centre_description = record.get('Centre_description', '')
+    updated_centre_description, centre_replacements = replace_tags_in_text(original_centre_description)
+    memory['Centre_description'] = updated_centre_description
+    
+    # Step 3: Process description column
+    original_description = record.get('description', '')
+    updated_description, desc_replacements = replace_tags_in_text(original_description)
+    memory['description'] = updated_description
+    
+    # Log replacements for debugging (only if replacements were made)
+    vendor_id = record.get('vendorId', 'Unknown')
+    all_replacements = title_replacements + centre_replacements + desc_replacements
+    if all_replacements:
+        logger.info(f"Text replacements for {vendor_id}: {', '.join(all_replacements)}")
+    
+    # Return updated record with replaced text fields
+    updated_record = record.copy()
+    updated_record['title'] = updated_title
+    updated_record['Centre_description'] = updated_centre_description
+    updated_record['description'] = updated_description
+    
+    return updated_record
+
 def generate_xml_feed(records):
     """Generates XML feed and returns dictionary with statistics."""
     ns = "http://admarkt.marktplaats.nl/schemas/1.0"
@@ -243,7 +305,10 @@ def generate_xml_feed(records):
             if str(record.get('Available', '')).upper() not in ['TRUE', 'YES', '1']:
                 continue
 
-            # Stage 1: Check for required fields
+            # Stage 1: Replace text tags in title, Centre_description, and description
+            record = replace_text_tags(record)
+
+            # Stage 2: Check for required fields
             is_valid, error_msg = validate_record(record)
             if not is_valid:
                 reason = f"Row {row_num} (ID: {vendor_id}): skipped due to validation error - {error_msg}."
@@ -252,7 +317,7 @@ def generate_xml_feed(records):
                 skipped_count += 1
                 continue # <-- continue now inside if
 
-            # Stage 2: Check compliance with XSD constraints
+            # Stage 3: Check compliance with XSD constraints
             is_xsd_valid, xsd_error_msg = validate_xsd_constraints(record)
             if not is_xsd_valid:
                 reason = f"Row {row_num} (ID: {vendor_id}): skipped due to XSD non-compliance - {xsd_error_msg}."
