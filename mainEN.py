@@ -6,16 +6,16 @@ import os
 import logging
 from dotenv import load_dotenv
 
-# --- Загрузка переменных окружения из .env файла ---
+# --- Load environment variables from .env file ---
 load_dotenv()
 
-# --- Настройки ---
+# --- Settings ---
 SCOPE = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 CREDENTIALS_FILE = os.getenv('GOOGLE_CREDENTIALS_PATH', 'credentials.json')
 SPREADSHEET_NAME = os.getenv('SPREADSHEET_NAME')
 WORKSHEET_NAME = os.getenv('WORKSHEET_NAME')
 
-# --- НОВЫЙ БЛОК: Константы с ограничениями из XSD-схемы ---
+# --- NEW BLOCK: Constants with XSD schema constraints ---
 XSD_VENDOR_ID_MAX_LENGTH = 64
 XSD_ATTRIBUTE_NAME_MAX_LENGTH = 32
 XSD_ATTRIBUTE_VALUE_MAX_LENGTH = 32
@@ -25,21 +25,21 @@ XSD_ALLOWED_PRICE_TYPES = {
     "SEE_DESCRIPTION", "ON_DEMAND", "BIDDING_FROM"
     
 }
-# --- КОНЕЦ НОВОГО БЛОКА ---
-# --- НОВЫЙ БЛОК: Список колонок, которые будут преобразованы в атрибуты XML ---
+# --- END OF NEW BLOCK ---
+# --- NEW BLOCK: List of columns that will be converted to XML attributes ---
 ATTRIBUTE_COLUMNS = [
     'area_sqm',
     'property_type',
     'deal_type',
-    # Добавьте сюда другие колонки-атрибуты, если они появятся
+    # Add other attribute columns here if they appear
 ]
-# --- КОНЕЦ НОВОГО БЛОКА ---
+# --- END OF NEW BLOCK ---
 
-# --- Настройка логирования (упрощенный формат) ---
+# --- Logging setup (simplified format) ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Конфигурация Cloudinary ---
+# --- Cloudinary configuration ---
 cloudinary_cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME')
 cloudinary_api_key = os.getenv('CLOUDINARY_API_KEY')
 cloudinary_api_secret = os.getenv('CLOUDINARY_API_SECRET')
@@ -54,118 +54,118 @@ if cloudinary_cloud_name and cloudinary_api_key and cloudinary_api_secret:
         secure = True
     )
 else:
-    logger.warning("Переменные окружения для Cloudinary не настроены. Загрузка фида будет недоступна.")
+    logger.warning("Cloudinary environment variables not configured. Feed upload will be unavailable.")
 
 
-# --- Инициализация приложения Flask ---
+# --- Flask application initialization ---
 app = Flask(__name__)
 
-# --- Список колонок с дополнительными изображениями ---
+# --- List of columns with additional images ---
 IMAGE_COLUMNS = ['img_2', 'img_3', 'img_4', 'img_5', 'img_6', 'img_7', 'img_8', 'img_9', 'img_10']
 
 def get_sheet_data():
-    """Подключается к Google Sheets и получает данные."""
+    """Connects to Google Sheets and retrieves data."""
     try:
         if not os.path.exists(CREDENTIALS_FILE):
-            raise FileNotFoundError(f"Файл credentials.json не найден по пути: {CREDENTIALS_FILE}")
+            raise FileNotFoundError(f"credentials.json file not found at path: {CREDENTIALS_FILE}")
             
         creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, SCOPE)
         client = gspread.authorize(creds)
         sheet = client.open(SPREADSHEET_NAME).worksheet(WORKSHEET_NAME)
         records = sheet.get_all_records()
-        logger.info(f"Успех: получено {len(records)} записей из таблицы '{SPREADSHEET_NAME}'.")
+        logger.info(f"Success: retrieved {len(records)} records from table '{SPREADSHEET_NAME}'.")
         return records
     except Exception as e:
-        logger.error(f"Ошибка доступа к Google Sheets: {e}")
+        logger.error(f"Google Sheets access error: {e}")
         raise
 
 def validate_record(record):
-    """Проверяет, что запись содержит обязательные поля."""
+    """Checks that the record contains required fields."""
     required_fields = ['vendorId', 'title', 'description', 'categoryId', 'priceType']
     
     for field in required_fields:
         if not record.get(field):
-            return False, f"отсутствует обязательное поле '{field}'"
+            return False, f"missing required field '{field}'"
     
-    # Блок проверки цены был удален, так как теперь мы обрабатываем пустую цену с помощью фоллбэка.
+    # Price validation block was removed, as we now handle empty price with fallback.
 
     
     return True, None
 
-    # --- НОВЫЙ БЛОК: Функция для валидации по XSD-ограничениям ---
+    # --- NEW BLOCK: Function for XSD constraint validation ---
 def validate_xsd_constraints(record):
-    """Проверяет данные записи на соответствие XSD-схеме (длины, типы, перечисления)."""
-    # Проверка длины vendorId
+    """Validates record data against XSD schema (lengths, types, enumerations)."""
+    # Check vendorId length
     vendor_id = str(record.get('vendorId', ''))
     if len(vendor_id) > XSD_VENDOR_ID_MAX_LENGTH:
-        return False, f"поле 'vendorId' ('{vendor_id[:10]}...') превышает макс. длину {XSD_VENDOR_ID_MAX_LENGTH} символов"
+        return False, f"field 'vendorId' ('{vendor_id[:10]}...') exceeds max length {XSD_VENDOR_ID_MAX_LENGTH} characters"
 
-    # Проверка допустимых значений для priceType
+    # Check allowed values for priceType
     price_type = str(record.get('priceType', '')).upper()
     if price_type and price_type not in XSD_ALLOWED_PRICE_TYPES:
-        return False, f"значение '{price_type}' в поле 'priceType' не разрешено схемой"
+        return False, f"value '{price_type}' in field 'priceType' is not allowed by schema"
 
-    # Проверка, что categoryId является положительным целым числом
+    # Check that categoryId is a positive integer
     try:
         category_id = int(float(record.get('categoryId')))
         if category_id <= 0:
-            return False, f"поле 'categoryId' должно быть положительным числом, а получено: {category_id}"
+            return False, f"field 'categoryId' must be a positive number, but got: {category_id}"
     except (ValueError, TypeError, AttributeError):
-        return False, f"поле 'categoryId' ('{record.get('categoryId')}') не может быть преобразовано в число"
+        return False, f"field 'categoryId' ('{record.get('categoryId')}') cannot be converted to a number"
 
-    # Старая проверка атрибутов удалена, так как теперь они собираются из отдельных колонок.
+    # Old attribute validation removed, as they are now collected from separate columns.
 
     return True, None
 
 def clean_text(text):
-    """Очищает и подготавливает текст для XML."""
+    """Cleans and prepares text for XML."""
     return str(text).strip() if text is not None else ""
 
 def is_valid_url(url):
-    """Проверяет, что URL корректный."""
+    """Checks that URL is valid."""
     url_str = str(url).strip()
     return url_str.startswith(('http://', 'https://'))
 
 def get_attribute_value_with_fallback(key, value):
-    """Применяет фоллбэк-логику для определенных атрибутов."""
+    """Applies fallback logic for specific attributes."""
     if key == 'area_sqm':
         try:
-            # Пытаемся преобразовать значение в число
+            # Try to convert value to number
             numeric_value = int(float(value))
-            # Если значение 0 или меньше, возвращаем '1'
+            # If value is 0 or less, return '1'
             if numeric_value <= 0:
                 return '1'
         except (ValueError, TypeError):
-            # Если значение пустое или не является числом (например, "N/A"), возвращаем '1'
+            # If value is empty or not a number (e.g., "N/A"), return '1'
             return '1'
     
-    # Для всех остальных атрибутов возвращаем их оригинальное значение без изменений
+    # For all other attributes, return their original value unchanged
     return value
 
 def get_price_with_fallback(price_value, price_type):
     """
-    Преобразует значение цены в целое число с учетом priceType.
-    - Для типов, требующих цену, возвращает 1, если цена некорректна, пуста или 0.
-    - Для остальных типов возвращает 0, чтобы тег <price> просто присутствовал в XML.
+    Converts price value to integer considering priceType.
+    - For types requiring price, returns 1 if price is invalid, empty or 0.
+    - For other types returns 0 so that <price> tag simply exists in XML.
     """
-    # Типы цен, для которых цена является обязательной
+    # Price types for which price is mandatory
     types_requiring_price = ['FIXED_PRICE', 'BIDDING_FROM']
 
     if price_type in types_requiring_price:
         if price_value is None:
-            return 1  # Фоллбэк для отсутствующей цены
+            return 1  # Fallback for missing price
         try:
             numeric_price = int(float(price_value))
             return 1 if numeric_price <= 0 else numeric_price
         except (ValueError, TypeError):
-            return 1  # Фоллбэк для нечисловых значений ("N/A")
+            return 1  # Fallback for non-numeric values ("N/A")
     else:
-        # Для типов NEGOTIABLE, FREE и т.д. цена не нужна.
-        # Возвращаем 0, чтобы удовлетворить требование схемы о наличии тега <price>.
+        # For NEGOTIABLE, FREE etc. types, price is not needed.
+        # Return 0 to satisfy schema requirement for <price> tag presence.
         return 0
 
 def generate_xml_feed(records):
-    """Генерирует XML-фид и возвращает словарь со статистикой."""
+    """Generates XML feed and returns dictionary with statistics."""
     ns = "http://admarkt.marktplaats.nl/schemas/1.0"
     root = etree.Element(f"{{{ns}}}ads", nsmap={'admarkt': ns})
     
@@ -174,42 +174,42 @@ def generate_xml_feed(records):
     error_details = []
     
     for i, record in enumerate(records):
-        # --- БЛОК ДЛЯ ОТЛАДКИ ---
-        if i == 0: # Печатаем информацию только для самой первой строки данных
-            print("\n\n--- НАЧАЛО ОТЛАДКИ ---")
-            print("ОТЛАДКА: Все заголовки, которые видит Python из вашей таблицы:")
+        # --- DEBUG BLOCK ---
+        if i == 0: # Print information only for the very first data row
+            print("\n\n--- DEBUG START ---")
+            print("DEBUG: All headers that Python sees from your table:")
             print(list(record.keys()))
-            print("--- КОНЕЦ ОТЛАДКИ ---\n\n")
-        # --- КОНЕЦ БЛОКА ---
-        row_num = i + 2  # Нумерация строк в Google Sheets начинается с 1, +1 для заголовка
+            print("--- DEBUG END ---\n\n")
+        # --- END OF BLOCK ---
+        row_num = i + 2  # Row numbering in Google Sheets starts from 1, +1 for header
         vendor_id = record.get('vendorId') or f'ROW-{row_num}'
         
         try:
-            # Пропускаем неактивные объявления
+            # Skip inactive ads
             if str(record.get('Available', '')).upper() not in ['TRUE', 'YES', '1']:
                 continue
 
-            # Этап 1: Проверка на наличие обязательных полей
+            # Stage 1: Check for required fields
             is_valid, error_msg = validate_record(record)
             if not is_valid:
-                reason = f"Строка {row_num} (ID: {vendor_id}): пропущена из-за ошибки валидации - {error_msg}."
+                reason = f"Row {row_num} (ID: {vendor_id}): skipped due to validation error - {error_msg}."
                 logger.warning(reason)
                 error_details.append({"vendorId": vendor_id, "reason": reason})
                 skipped_count += 1
-                continue # <-- continue теперь внутри if
+                continue # <-- continue now inside if
 
-            # Этап 2: Проверка на соответствие XSD-ограничениям
+            # Stage 2: Check compliance with XSD constraints
             is_xsd_valid, xsd_error_msg = validate_xsd_constraints(record)
             if not is_xsd_valid:
-                reason = f"Строка {row_num} (ID: {vendor_id}): пропущена из-за несоответствия XSD - {xsd_error_msg}."
+                reason = f"Row {row_num} (ID: {vendor_id}): skipped due to XSD non-compliance - {xsd_error_msg}."
                 logger.warning(reason)
                 error_details.append({"vendorId": vendor_id, "reason": reason})
                 skipped_count += 1
-                continue # <-- и этот continue тоже внутри своего if
+                continue # <-- and this continue is also inside its if
             
             ad_element = etree.SubElement(root, f"{{{ns}}}ad")
             
-            # --- Основные поля ---
+            # --- Main fields ---
             etree.SubElement(ad_element, f"{{{ns}}}vendorId").text = clean_text(record.get('vendorId'))
             etree.SubElement(ad_element, f"{{{ns}}}title").text = clean_text(record.get('title'))
             etree.SubElement(ad_element, f"{{{ns}}}description").text = etree.CDATA(clean_text(record.get('description')))
@@ -222,7 +222,7 @@ def generate_xml_feed(records):
             if record.get('url') and is_valid_url(record.get('url')):
                 etree.SubElement(ad_element, f"{{{ns}}}url").text = clean_text(record.get('url'))
             
-            # --- Изображения ---
+            # --- Images ---
             all_images = [clean_text(record.get('image_link'))] if record.get('image_link') and is_valid_url(record.get('image_link')) else []
             for img_col in IMAGE_COLUMNS:
                 img_url = record.get(img_col)
@@ -234,21 +234,21 @@ def generate_xml_feed(records):
                 for img_url in all_images:
                     etree.SubElement(media_element, f"{{{ns}}}image", url=img_url)
 
-            # --- Атрибуты ---
+            # --- Attributes ---
             found_attributes = []
             for attr_key in ATTRIBUTE_COLUMNS:
-                # Проверяем, что такая колонка есть в данных из таблицы
+                # Check that such column exists in table data
                 if record.get(attr_key) is not None:
                     original_value = clean_text(record.get(attr_key))
                     
-                    # Применяем нашу новую фоллбэк-логику к значению
+                    # Apply our new fallback logic to the value
                     final_value = get_attribute_value_with_fallback(attr_key, original_value)
                     
-                    # Добавляем атрибут, только если у него есть итоговое значение
+                    # Add attribute only if it has a final value
                     if final_value:
                         found_attributes.append((attr_key, final_value))
 
-            # Если были найдены атрибуты, создаем XML-блок
+            # If attributes were found, create XML block
             if found_attributes:
                 attrs_element = etree.SubElement(ad_element, f"{{{ns}}}attributes")
                 for key, value in found_attributes:
@@ -258,12 +258,12 @@ def generate_xml_feed(records):
             
             processed_count += 1
         except (ValueError, TypeError) as e:
-            reason = f"Строка {row_num} (ID: {vendor_id}): пропущена из-за ошибки данных - {e}. Проверьте формат чисел."
+            reason = f"Row {row_num} (ID: {vendor_id}): skipped due to data error - {e}. Check number format."
             logger.error(reason)
             error_details.append({"vendorId": vendor_id, "reason": reason})
             skipped_count += 1
             
-    logger.info(f"Генерация XML завершена. Добавлено: {processed_count}, Пропущено: {skipped_count}")
+    logger.info(f"XML generation completed. Added: {processed_count}, Skipped: {skipped_count}")
     
     return {
         "xml_content": etree.tostring(root, pretty_print=True, xml_declaration=True, encoding='UTF-8'),
@@ -273,9 +273,9 @@ def generate_xml_feed(records):
     }
 
 def upload_feed_to_cloudinary(xml_content):
-    """Загружает XML-фид в Cloudinary."""
+    """Uploads XML feed to Cloudinary."""
     if not all([cloudinary_cloud_name, cloudinary_api_key, cloudinary_api_secret]):
-        raise ConnectionError("Учетные данные Cloudinary не настроены.")
+        raise ConnectionError("Cloudinary credentials not configured.")
     
     try:
         upload_result = cloudinary.uploader.upload(
@@ -285,15 +285,15 @@ def upload_feed_to_cloudinary(xml_content):
             folder="XMLs/Netherlands/Marktplaats",
             overwrite=True
         )
-        logger.info(f"Успех: фид загружен в Cloudinary. URL: {upload_result.get('secure_url')}")
+        logger.info(f"Success: feed uploaded to Cloudinary. URL: {upload_result.get('secure_url')}")
         return upload_result
     except Exception as e:
-        logger.error(f"Ошибка загрузки в Cloudinary: {e}")
+        logger.error(f"Cloudinary upload error: {e}")
         raise
 
 @app.route('/generate-feed')
 def generate_and_upload_feed():
-    """Основной эндпоинт для генерации и загрузки фида."""
+    """Main endpoint for feed generation and upload."""
     try:
         records = get_sheet_data()
         generation_result = generate_xml_feed(records)
@@ -301,7 +301,7 @@ def generate_and_upload_feed():
         
         return jsonify({
             "status": "success",
-            "message": "Фид успешно сгенерирован и загружен.",
+            "message": "Feed successfully generated and uploaded.",
             "cloudinary_feed_url": upload_result.get('secure_url'),
             "stats": {
                 "total_rows_found_in_sheet": len(records),
@@ -316,8 +316,8 @@ def generate_and_upload_feed():
 
 @app.route('/')
 def index():
-    """Главная страница."""
-    return '<h1>Сервис для генерации фида Marktplaats активен.</h1><p>Перейдите на <a href="/generate-feed">/generate-feed</a> для запуска.</p>'
+    """Main page."""
+    return '<h1>Marktplaats feed generation service is active.</h1><p>Go to <a href="/generate-feed">/generate-feed</a> to start.</p>'
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

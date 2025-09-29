@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: marktplaats-xml-generator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn APP:app
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: GOOGLE_CREDENTIALS_PATH
+        value: credentials.json
+      - key: SPREADSHEET_NAME
+        sync: false
+      - key: WORKSHEET_NAME
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
