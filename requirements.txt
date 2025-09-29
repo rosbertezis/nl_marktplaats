@@ -1,6 +1,7 @@
-gspread
-oauth2client
-Flask
-lxml
-cloudinary
-python-dotenv
+gspread==5.12.4
+oauth2client==4.1.3
+Flask==3.0.0
+lxml==4.9.3
+cloudinary==1.36.0
+python-dotenv==1.0.0
+gunicorn==21.2.0
