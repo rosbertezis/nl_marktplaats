@@ -1,6 +1,6 @@
-Flask
 gspread
 oauth2client
-gunicorn
+Flask
 lxml
 cloudinary
+python-dotenv
