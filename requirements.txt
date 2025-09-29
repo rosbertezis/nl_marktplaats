@@ -1,7 +1,5 @@
 gspread
 google-auth
-google-auth-oauthlib
-google-auth-httplib2
 Flask
 lxml
 cloudinary
