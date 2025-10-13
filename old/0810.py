@@ -480,74 +480,6 @@ def serve_xml():
     except FileNotFoundError:
         return jsonify({"error": "No XML file available. Generate a feed first."}), 404
 
-def validate_xml_against_schema(xml_file_path, xsd_file_path):
-    """
-    Validates XML file against XSD schema and returns validation results.
-    """
-    try:
-        # Parse XSD schema
-        schema_doc = etree.parse(xsd_file_path)
-        schema = etree.XMLSchema(schema_doc)
-        
-        # Parse XML file
-        xml_doc = etree.parse(xml_file_path)
-        
-        # Validate XML against schema
-        is_valid = schema.validate(xml_doc)
-        
-        validation_results = {
-            "is_valid": is_valid,
-            "errors": [],
-            "warnings": []
-        }
-        
-        if not is_valid:
-            # Get detailed error information
-            for error in schema.error_log:
-                validation_results["errors"].append({
-                    "line": error.line,
-                    "column": error.column,
-                    "message": error.message,
-                    "domain": error.domain_name,
-                    "type": error.type_name
-                })
-        
-        return validation_results
-        
-    except Exception as e:
-        return {
-            "is_valid": False,
-            "errors": [{"message": f"Validation failed: {str(e)}"}],
-            "warnings": []
-        }
-
-@app.route('/validate-xml')
-def validate_current_xml():
-    """Validates the current XML file against the XSD schema."""
-    try:
-        xml_path = os.path.join(XML_STORAGE_DIR, "latest.xml")
-        xsd_path = "schema.xsd"
-        
-        if not os.path.exists(xml_path):
-            return jsonify({"error": "No XML file found. Generate a feed first."}), 404
-            
-        if not os.path.exists(xsd_path):
-            return jsonify({"error": "XSD schema file not found."}), 404
-        
-        validation_results = validate_xml_against_schema(xml_path, xsd_path)
-        
-        response_data = {
-            "status": "success",
-            "validation_results": validation_results,
-            "xml_file": "latest.xml",
-            "schema_file": "schema.xsd"
-        }
-        
-        return jsonify(response_data), 200
-        
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
 @app.route('/')
 def index():
     """Main page."""
@@ -557,7 +489,6 @@ def index():
     <ul>
         <li><a href="/generate-feed">/generate-feed</a> - Generate and upload feed</li>
         <li><a href="/xml">/xml</a> - View current XML feed (static URL)</li>
-        <li><a href="/validate-xml">/validate-xml</a> - Validate XML against XSD schema</li>
     </ul>
     <p><strong>Note:</strong> Each sync replaces the previous XML file. The URL remains static.</p>
     '''

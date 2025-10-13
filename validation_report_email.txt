@@ -1,0 +1,22 @@
+Subject: XML Feed Issue - Validation Passes but System Errors
+
+Dear Team,
+
+I've attached an XML example with 1 object and the schema I used for validation.
+
+**Validation Result**: ✅ PASSED - No errors found
+- XML validator confirms the feed is 100% compliant with AdMarkt schema
+- All required fields present and correctly formatted
+- Data types and constraints satisfied
+
+**Problem**: Your system immediately throws an error upon feed upload, despite perfect validation.
+
+**Question**: How would you prefer us to store/host this XML feed? 
+- Our current servers (Render hosting) seem inaccessible to your system
+- Cloudinary links also appear blocked
+- What hosting solution or delivery method works best for your integration?
+
+Please advise on the optimal XML feed delivery approach for your system.
+
+Best regards,
+Ross
