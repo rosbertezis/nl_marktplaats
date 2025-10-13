@@ -480,6 +480,14 @@ def serve_xml():
     except FileNotFoundError:
         return jsonify({"error": "No XML file available. Generate a feed first."}), 404
 
+@app.route('/xml-debug')
+def serve_xml_debug():
+    """Serves the current XML file via debug endpoint."""
+    try:
+        return send_from_directory(XML_STORAGE_DIR, "latest.xml", as_attachment=False)
+    except FileNotFoundError:
+        return jsonify({"error": "No XML file available. Generate a feed first."}), 404
+
 def validate_xml_against_schema(xml_file_path, xsd_file_path):
     """
     Validates XML file against XSD schema and returns validation results.
@@ -557,6 +565,7 @@ def index():
     <ul>
         <li><a href="/generate-feed">/generate-feed</a> - Generate and upload feed</li>
         <li><a href="/xml">/xml</a> - View current XML feed (static URL)</li>
+        <li><a href="/xml-debug">/xml-debug</a> - View current XML feed (debug endpoint)</li>
         <li><a href="/validate-xml">/validate-xml</a> - Validate XML against XSD schema</li>
     </ul>
     <p><strong>Note:</strong> Each sync replaces the previous XML file. The URL remains static.</p>
