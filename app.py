@@ -561,6 +561,7 @@ def index():
     """Main page."""
     return '''
     <h1>Marktplaats feed generation service is active.</h1>
+    <p><em>Updated: October 13, 2025</em></p>
     <p>Available endpoints:</p>
     <ul>
         <li><a href="/generate-feed">/generate-feed</a> - Generate and upload feed</li>
