@@ -240,11 +240,15 @@ def replace_text_tags(record):
     centre_desc, centre_rep = replace_tags_in_text(record.get('Centre_description', ''))
     memory['Centre_description'] = centre_desc
     
+    # New: process preheader after Centre_description
+    preheader, preheader_rep = replace_tags_in_text(record.get('preheader', ''))
+    memory['preheader'] = preheader
+
     description, desc_rep = replace_tags_in_text(record.get('description', ''))
     memory['description'] = description
     
     # Log replacements
-    all_rep = title_rep + centre_rep + desc_rep
+    all_rep = title_rep + centre_rep + preheader_rep + desc_rep
     if all_rep:
         vendor_id = record.get('vendorId', 'Unknown')
         logger.info(f"Replacements for {vendor_id}: {', '.join(all_rep)}")
@@ -252,6 +256,7 @@ def replace_text_tags(record):
     updated_record = record.copy()
     updated_record['title'] = title
     updated_record['Centre_description'] = centre_desc
+    updated_record['preheader'] = preheader
     updated_record['description'] = description
     
     return updated_record
@@ -302,7 +307,15 @@ def generate_xml_feed(records):
             etree.SubElement(ad, f"{{{ns}}}vendorId").text = clean_text(record.get('vendorId'))
             etree.SubElement(ad, f"{{{ns}}}title").text = clean_text(record.get('title'))
             
-            formatted_desc = format_text_for_marktplaats(record.get('description'))
+            # Combine preheader + description: preheader first, then a blank paragraph, then description
+            combined_description_source = record.get('description')
+            preheader_text = record.get('preheader')
+            if preheader_text and str(preheader_text).strip():
+                base_desc = str(combined_description_source or '')
+                combined_description_source = f"{str(preheader_text).strip()}\n\n{base_desc.strip()}" if base_desc.strip() else str(preheader_text).strip()
+                logger.debug("Prepended preheader to description for vendorId=%s", record.get('vendorId'))
+
+            formatted_desc = format_text_for_marktplaats(combined_description_source)
             etree.SubElement(ad, f"{{{ns}}}description").text = etree.CDATA(formatted_desc)
             
             etree.SubElement(ad, f"{{{ns}}}categoryId").text = str(int(float(record.get('categoryId'))))
